@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 import zipfile
@@ -131,9 +132,10 @@ class PA:
             parts.append(f"--{boundary}--\r\n".encode())
             body = b"".join(parts)
             headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-        elif data is not None:
-            body = json.dumps(data).encode()
-            headers["Content-Type"] = "application/json"
+        elif data is not None:  # the PythonAnywhere API takes form-encoded fields
+            body = urllib.parse.urlencode({k: (str(v) if not isinstance(v, bool) else ("True" if v else "False"))
+                                           for k, v in data.items()}).encode()
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
         req = urllib.request.Request(url, data=body, method=method, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=300) as r:
