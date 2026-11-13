@@ -1,0 +1,6 @@
+# Runtime data: database (accounts, reviews), uploads, generated notes/covers.
+# Recreated automatically by start.sh -> app/seed.py
+data/
+__pycache__/
+*.pyc
+.DS_Store
