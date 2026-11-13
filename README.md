@@ -23,8 +23,9 @@ The site goes live at `https://<your-username>.pythonanywhere.com`, with your lo
 uploads copied over. Running the script again updates the code only. Online accounts, reviews and uploads
 in `data/` are never overwritten, so after the first deploy the online site has its own data.
 
-Free-plan notes: log in at least once every 3 months and press **"Run until 3 months from today"** on
-the Web tab, or the site is paused. Free accounts can't reach most outside websites, so upload covers
+Free-plan notes: free web apps expire after a month. Log in and press **"Run until 1 month from today"**
+on the Web tab before the date shown there, or the site is paused (nothing is deleted; pressing the
+button brings it back). Free accounts can't reach most outside websites, so upload covers
 for new songs yourself (album artwork for the bundled songs is shipped with the deploy).
 
 `app/wsgi.py` also works with any other WSGI server (e.g. `gunicorn --chdir app wsgi:application`).
