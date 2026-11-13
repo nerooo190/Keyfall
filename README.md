@@ -12,6 +12,23 @@ A self-hosted MIDI song database for falling-notes piano players (Synthesia and 
 Needs Python 3 and `mido` (`start.sh` installs it if it's missing). There's no build step and no internet
 connection needed.
 
+## Publish it free on PythonAnywhere
+
+1. Create a free **Beginner** account at pythonanywhere.com.
+2. Under **Account → API token**, create a token and save it to `~/.config/keyfall/pythonanywhere_token`
+   (or set `PYTHONANYWHERE_TOKEN`).
+3. Run `python3 -I deploy/pythonanywhere.py <your-username>`.
+
+The site goes live at `https://<your-username>.pythonanywhere.com`, with your local songs, account and
+uploads copied over. Running the script again updates the code only. Online accounts, reviews and uploads
+in `data/` are never overwritten, so after the first deploy the online site has its own data.
+
+Free-plan notes: log in at least once every 3 months and press **"Run until 3 months from today"** on
+the Web tab, or the site is paused. Free accounts can't reach most outside websites, so upload covers
+for new songs yourself (album artwork for the bundled songs is shipped with the deploy).
+
+`app/wsgi.py` also works with any other WSGI server (e.g. `gunicorn --chdir app wsgi:application`).
+
 ## Features
 
 - **Library**: 437 songs from `Songs/`, with search across title, artist, arranger and tags, category tabs,

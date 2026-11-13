@@ -2,8 +2,14 @@
 import bisect
 import hashlib
 import io
+import os
+import sys
 
-import mido
+try:
+    import mido
+except ImportError:  # use the bundled copy (app/vendor) on hosts without mido installed
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor"))
+    import mido
 
 # Some files carry out-of-range key signatures; treat them as C major instead of failing.
 _ks = mido.midifiles.meta._META_SPEC_BY_TYPE["key_signature"]

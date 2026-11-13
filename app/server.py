@@ -33,6 +33,9 @@ MAX_MIDI = 2 * 1024 * 1024
 MAX_COVER = 2 * 1024 * 1024
 SESSION_DAYS = 30
 PBKDF2_ROUNDS = 200_000
+# Set KEYFALL_TRUST_PROXY=1 when running behind a reverse proxy (PythonAnywhere, nginx):
+# then X-Real-IP / X-Forwarded-Proto are trusted for rate limiting and Secure cookies.
+TRUST_PROXY = os.environ.get("KEYFALL_TRUST_PROXY") == "1"
 
 SORTS = {
     "title": "s.title COLLATE NOCASE",
@@ -156,25 +159,41 @@ class Handler(BaseHTTPRequestHandler):
         """Queue a response; it is written by flush() after the DB transaction commits."""
         self._pending = (status, ctype, length, extra)
 
-    def flush(self):
+    def response_headers(self):
         status, ctype, length, extra = self._pending
-        body = self._pending_body
+        headers = [
+            ("Content-Type", ctype),
+            ("Content-Length", str(length)),
+            ("X-Content-Type-Options", "nosniff"),
+            ("Referrer-Policy", "same-origin"),
+            ("X-Frame-Options", "DENY"),
+            ("Content-Security-Policy",
+             "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
+             "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"),
+        ]
+        if self.is_https():
+            headers.append(("Strict-Transport-Security", "max-age=15552000"))
+        headers += list((extra or {}).items())
+        return status, headers
+
+    def flush(self):
+        status, headers = self.response_headers()
         self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(length))
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "same-origin")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header(
-            "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; "
-            "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
-        )
-        for k, v in (extra or {}).items():
+        for k, v in headers:
             self.send_header(k, v)
         self.end_headers()
-        if self.command != "HEAD" and body:
-            self.wfile.write(body)
+        if self.command != "HEAD" and self._pending_body:
+            self.wfile.write(self._pending_body)
+
+    def is_https(self):
+        return TRUST_PROXY and self.headers.get("X-Forwarded-Proto", "").lower() == "https"
+
+    def client_ip(self):
+        if TRUST_PROXY:
+            ip = self.headers.get("X-Real-IP") or self.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+            if ip:
+                return ip
+        return self.client_address[0]
 
     def send_json(self, obj, status=200, extra=None):
         body = json.dumps(obj, ensure_ascii=False).encode()
@@ -308,7 +327,11 @@ class Handler(BaseHTTPRequestHandler):
     def start_session(self, user_id):
         token = secrets.token_urlsafe(32)
         self.db.execute("INSERT INTO sessions VALUES (?,?,?)", (token, user_id, int(time.time())))
-        return {"Set-Cookie": f"kf_session={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={SESSION_DAYS * 86400}"}
+        return {"Set-Cookie": f"kf_session={token}; HttpOnly; SameSite=Lax; Path=/; "
+                              f"Max-Age={SESSION_DAYS * 86400}{self.secure_flag()}"}
+
+    def secure_flag(self):
+        return "; Secure" if self.is_https() else ""
 
     def api_register(self):
         data = self.read_json()
@@ -333,7 +356,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"user": {"id": cur.lastrowid, "username": username, "is_admin": first}}, 201, cookie)
 
     def api_login(self):
-        ip = self.client_address[0]
+        ip = self.client_ip()
         now = time.time()
         with _lock:
             attempts = [t for t in _login_attempts.get(ip, []) if t > now - 300]
@@ -356,7 +379,8 @@ class Handler(BaseHTTPRequestHandler):
         token = SimpleCookie(self.headers.get("Cookie", "")).get("kf_session")
         if token:
             self.db.execute("DELETE FROM sessions WHERE token = ?", (token.value,))
-        self.send_json({"ok": True}, 200, {"Set-Cookie": "kf_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"})
+        self.send_json({"ok": True}, 200,
+                       {"Set-Cookie": f"kf_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0{self.secure_flag()}"})
 
     def api_me(self):
         self.send_json({"user": self.current_user()})

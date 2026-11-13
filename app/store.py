@@ -8,8 +8,9 @@ import covers
 import midi_info
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA = os.path.join(ROOT, "data")
+DATA = os.environ.get("KEYFALL_DATA") or os.path.join(ROOT, "data")
 DB_PATH = os.path.join(DATA, "keyfall.db")
+JOURNAL_MODE = "DELETE" if os.environ.get("KEYFALL_SQLITE_JOURNAL", "WAL").upper() == "DELETE" else "WAL"
 DIRS = {k: os.path.join(DATA, k) for k in ("midi", "notes", "covers")}
 
 CATEGORIES = ["Pop & Rock", "Classical", "Modern Piano", "Film & TV", "Video Games", "Other"]
@@ -91,7 +92,8 @@ def connect():
     db = sqlite3.connect(DB_PATH, timeout=10)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
-    db.execute("PRAGMA journal_mode = WAL")
+    # WAL is faster locally; network filesystems (shared hosting) are safer with DELETE.
+    db.execute(f"PRAGMA journal_mode = {JOURNAL_MODE}")
     return db
 
 
