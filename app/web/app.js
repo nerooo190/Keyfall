@@ -258,6 +258,7 @@ searchInput.addEventListener("input", () => {
   searchTimer = setTimeout(() => {
     const p = location.pathname === "/" ? new URLSearchParams(location.search) : new URLSearchParams();
     const q = searchInput.value.trim();
+    if (location.pathname === "/" && q === (p.get("q") || "")) return; // e.g. only a space was added
     q ? p.set("q", q) : p.delete("q");
     const url = "/" + (p.toString() ? `?${p}` : "");
     if (location.pathname === "/") { history.replaceState(null, "", url); render(true); } else navigate(url);
@@ -276,7 +277,9 @@ const SORT_OPTIONS = [
 function libraryView(uploader = null) {
   const params = new URLSearchParams(location.search);
   if (uploader) params.set("uploader", uploader);
-  searchInput.value = params.get("q") || "";
+  // Only sync the box when the query really differs (e.g. back button); never strip what the user
+  // is typing, otherwise a trailing space disappears before the next word can be typed.
+  if (searchInput.value.trim() !== (params.get("q") || "")) searchInput.value = params.get("q") || "";
   const setParam = (k, v) => {
     const p = new URLSearchParams(location.search);
     v ? p.set(k, v) : p.delete(k);
